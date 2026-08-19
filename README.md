@@ -30,7 +30,8 @@ live-updating TUI — including one-key system-wide proxy connect for GNOME.
 ## Install
 
 ```bash
-cd ~/proxy
+git clone https://github.com/kekurttel/proxyveil
+cd ~/proxyveil
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 ```
