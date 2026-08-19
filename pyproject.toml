@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "proxyveil"
+version = "0.1.0"
+description = "Terminal-based free-proxy collector, verifier, and system-wide rotator. Collect → validate (anonymity, HTTPS CONNECT, latency) → connect system-wide → rotate with one key / tray menu. Uses only public free-proxy sources."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "textual>=0.76",
+    "aiohttp>=3.9",
+    "beautifulsoup4>=4.12",
+    "pystray>=0.19",
+    "Pillow>=10.0",
+    "python-xlib>=0.33",
+]
+
+[project.scripts]
+proxyveil = "main:main"
+
+[tool.setuptools]
+py-modules = ["main", "collector", "validator", "ui", "proxyctl", "tray"]

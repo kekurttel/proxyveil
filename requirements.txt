@@ -1,0 +1,6 @@
+textual>=0.76
+aiohttp>=3.9
+beautifulsoup4>=4.12
+pystray>=0.19
+Pillow>=10.0
+python-xlib>=0.33
