@@ -25,6 +25,9 @@ ECHO_URLS = [
 HTTPS_ECHO_URLS = [
     "https://api64.ipify.org?format=json",
     "https://wtfismyip.com/json",
+    "https://api.ipify.org?format=json",
+    "https://icanhazip.com",
+    "https://ifconfig.me/ip",
 ]
 # Header sızıntısını tespit ettiğimiz header isimleri (case-insensitive karşılaştırılır).
 FORWARD_HEADERS = ("x-forwarded-for", "x-forwarded", "forwarded", "proxy-connection",

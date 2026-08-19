@@ -488,7 +488,10 @@ class ProxyApp(App):
             self.notify(f"Connecting to {p.addr()}... verifying", severity="info")
             async with aiohttp.ClientSession(
                     headers={"User-Agent": "ProxyVeil/2.0"}) as s:
-                ok = await verify_https(s, p, timeout=3.0)
+                ok = await verify_https(s, p, timeout=5.0)
+                if not ok:  # free proxies stall — one grace retry before rollback
+                    await asyncio.sleep(1)
+                    ok = await verify_https(s, p, timeout=5.0)
             if ok:
                 self._failover_attempts = 0
                 self.refresh_status()
@@ -590,14 +593,23 @@ class ProxyApp(App):
                     f"Server: {self.connected.addr()} | Latency: {latency_ms:.0f} ms")
 
     async def _monitor_check(self, p):
-        """HTTPS echo through connected proxy, timed. Returns (ok, latency_ms)."""
+        """Liveness + HTTPS echo through connected proxy, timed.
+        TCP check first: most free-proxy deaths are connection-level, and a
+        dead TCP means failover regardless of echo service state. If TCP is up
+        but the HTTPS echo fails, retry once — echo services rate-limit/stall
+        while the proxy itself is fine (false failover = rapid rotation)."""
         import aiohttp
         from validator import verify_https
         t0 = time.monotonic()
         try:
+            if not self.proxyctl.check_alive(p):
+                return False, (time.monotonic() - t0) * 1000
             async with aiohttp.ClientSession(
                     headers={"User-Agent": "ProxyVeil/2.0"}) as s:
-                ok = await verify_https(s, p, timeout=3.0)
+                ok = await verify_https(s, p, timeout=5.0)
+                if not ok:
+                    await asyncio.sleep(1)
+                    ok = await verify_https(s, p, timeout=5.0)
         except Exception:
             ok = False
         return ok, (time.monotonic() - t0) * 1000
