@@ -54,7 +54,7 @@ def main():
 
     async def run():
         print("[*] detecting real IP...")
-        async with aiohttp.ClientSession(headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64)"}) as s:
+        async with aiohttp.ClientSession(headers={"User-Agent": "Mozilla/5.0"}) as s:
             real_ip = await get_real_ip(s)
         print(f"[*] real IP: {real_ip or 'not found'}")
 

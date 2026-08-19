@@ -1,6 +1,6 @@
 """Textual TUI: live table, filters, detail view, export, retest, system-wide
 connect (gsettings/GNOME), fast rotation with failover."""
-import asyncio, os, time
+import asyncio, os, sys, time
 from datetime import datetime
 
 from tray import TrayManager
@@ -194,9 +194,13 @@ class ProxyApp(App):
         if self.proxyctl is not None:
             return
         try:
-            import proxyctl as pc
+            if sys.platform == "win32":
+                import proxyctl_win as pc
+            else:
+                import proxyctl as pc
             if not pc.available():
-                self.connection_error = "gsettings missing/non-GNOME — connect disabled, export/project mode"
+                self.connection_error = ("winreg missing — connect disabled" if sys.platform == "win32"
+                                         else "gsettings missing/non-GNOME — connect disabled, export/project mode")
                 return
             self.proxyctl = pc
             self._recover_stale_backup()
@@ -649,11 +653,14 @@ class ProxyApp(App):
                       f"{self.connected_saved.get(('', 'mode'), '?')}")
             except Exception as e:
                 print(f"[proxyctl] EXIT RESTORE FAILED — fix manually: {e}")
-                # last resort: subprocess.run with arg list (no shell)
-                import subprocess
-                subprocess.run(["gsettings", "set", self.proxyctl.SCHEMA, "mode",
-                                self.connected_saved.get(("", "mode"), "'none'")],
-                               capture_output=True)
+                if sys.platform == "win32":
+                    self.proxyctl.force_off()
+                else:
+                    # last resort: subprocess.run with arg list (no shell)
+                    import subprocess
+                    subprocess.run(["gsettings", "set", self.proxyctl.SCHEMA, "mode",
+                                    self.connected_saved.get(("", "mode"), "'none'")],
+                                   capture_output=True)
         self._sync_tray()
 
     # ---------- actions ----------

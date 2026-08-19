@@ -9,7 +9,8 @@ system-wide connect (GNOME/gsettings) and fast HTTPS-first rotation.
 
 Collects public free proxy lists, classifies each proxy by anonymity level,
 verifies HTTPS support and latency, then lets you browse the results in a
-live-updating TUI — including one-key system-wide proxy connect for GNOME.
+live-updating TUI — including one-key system-wide proxy connect
+(Linux: GNOME/gsettings, Windows: WinINET).
 
 > Terminal-based free-proxy collector, verifier, and system-wide rotator.
 > Collect → validate (anonymity, HTTPS CONNECT, latency) → connect system-wide
@@ -127,6 +128,46 @@ GNOME Web (Epiphany), Firefox (if set to use system settings), Snap packages,
 gio-based apps (glib-networking). Chromium/Chrome use their own proxy settings.
 Terminal tools use `http_proxy`/`https_proxy` env vars — unaffected by gsettings.
 
+## System-wide connect (Windows)
+
+`C` / `N` / `X` and failover work exactly the same on Windows. Instead of
+gsettings, the **WinINET registry** is used
+(`HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings` —
+`ProxyEnable`, `ProxyServer`, `ProxyOverride`, `AutoConfigURL`), which is
+precisely what the **Settings > Network & Internet > Proxy** screen reads and
+writes. **No admin rights are needed.**
+
+- Same backup/restore guarantees: pre-connect values are persisted to
+  `%LOCALAPPDATA%\proxyveil\backup.json`, reused through failover rotation,
+  and restored on `X`, quit (esc/ctrl+c), 3-failover stop, and crash (stale
+  backup is restored on next startup).
+- `InternetSetOptionW` notifies WinINET after every change — browsers and other
+  WinINET apps pick the new proxy up instantly.
+- **WinHTTP** (Windows Update, services, some CLI tools) is configured
+  best-effort via `netsh winhttp` — that needs an elevated session; without
+  admin only WinINET coverage applies. WinHTTP is reset only if ProxyVeil
+  itself set it — a pre-existing WinHTTP proxy is never touched.
+- SOCKS proxies don't work system-wide here either (WinINET is HTTP-only) —
+  export/project mode only, same as Linux.
+
+**Which apps are affected:** browsers and most GUI apps use WinINET, so a
+connected proxy applies to them (Windows 10/11 "Use a proxy server" toggle).
+Terminal tools that read `HTTP_PROXY`/`HTTPS_PROXY` env vars are not affected.
+
+### Install on Windows
+
+```powershell
+git clone https://github.com/kekurttel/proxyveil
+cd proxyveil
+py -3.10 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+proxyveil
+```
+
+`python-xlib` is Linux-only — pip skips it automatically on Windows. Run in
+**Windows Terminal** for full VT/color support in the Textual TUI.
+
 ## System tray
 
 When you connect (`C` or `N`), a tray icon appears (green circle + arrow) with:
@@ -169,6 +210,7 @@ else through the proxy.
 source .venv/bin/activate
 python test_validator.py     # anonymity classification + https normalize + collector (assert-based)
 python test_proxyctl.py      # backup/restore logic (gsettings mocked, never touches real settings)
+python test_proxyctl_win.py  # Windows backend: WinINET registry + WinHTTP (winreg/ctypes mocked)
 python test_ui_failover.py   # rotation keeps original backup; crash recovery (headless, offline)
 python test_tray.py          # TrayManager: import-resistance, callbacks, icon drawing
 python smoke_test.py         # headless: 300 proxies, 20+ alive, FakeCtl connect simulation, export, SVG
