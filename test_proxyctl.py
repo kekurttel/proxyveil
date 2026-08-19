@@ -3,6 +3,7 @@
 gsettings gerçekten çalıştırılmaz — _run_gsettings mock'lanır.
 Çalıştır: python test_proxyctl.py
 """
+import os, tempfile
 import proxyctl
 from unittest.mock import patch
 from collector import Proxy
@@ -37,6 +38,8 @@ def fake_gsettings(*args):
 def run():
     n = len(fake_store.keys())  # İlk durum: boş
     fake_store.clear(); fake_log.clear()
+    # disk yedeklemesini test dizinine yönlendir (gerçek ~/.cache'ye asla yazma)
+    proxyctl.BACKUP_FILE = os.path.join(tempfile.mkdtemp(), "backup.json")
     # şemayı "var" yap
     fake_store[("org.gnome.system.proxy", "mode")] = "'auto'"
     proxyctl._run_gsettings = fake_gsettings
@@ -53,6 +56,15 @@ def run():
     check("mode yedeklendi", saved[("", "mode")] == "'auto'")
     check("http host yedeklendi", ("http", "host") in saved)
     check("ignore-hosts yedeklendi", ("", "ignore-hosts") in saved)
+
+    print("== disk yedekleme (crash/kill kurtarma) ==")
+    check("backup diske yazıldı", os.path.exists(proxyctl.BACKUP_FILE))
+    disk = proxyctl.load_backup()
+    check("load_backup geri okur", disk is not None and disk[("", "mode")] == "'auto'")
+    check("load_backup tüm anahtarlar", disk is not None and set(disk) == set(saved))
+    proxyctl.clear_backup()
+    check("clear_backup dosyayı siler", not os.path.exists(proxyctl.BACKUP_FILE))
+    check("load_backup yoksa None", proxyctl.load_backup() is None)
 
     print("== connect() ==")
     p = Proxy(host="95.211.174.135", port=3128, protocol="http")

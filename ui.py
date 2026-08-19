@@ -199,8 +199,25 @@ class ProxyApp(App):
                 self.connection_error = "gsettings missing/non-GNOME — connect disabled, export/project mode"
                 return
             self.proxyctl = pc
+            self._recover_stale_backup()
         except ImportError:
             self.connection_error = "proxyctl import failed"
+
+    def _recover_stale_backup(self) -> None:
+        """A previous session died while connected (crash/kill) — the persisted
+        pre-connect backup is still on disk. Restore it now."""
+        if self.proxyctl is None:
+            return
+        saved = self.proxyctl.load_backup()
+        if not saved:
+            return
+        try:
+            self.proxyctl.restore(saved)
+            self.proxyctl.clear_backup()
+            self.notify("Previous session crashed while connected — original proxy "
+                        "settings restored", severity="warning")
+        except Exception as e:
+            self.notify(f"Crash recovery failed: {e}", severity="error")
 
     def _connected_label(self) -> str:
         if self.connected:
@@ -451,11 +468,15 @@ class ProxyApp(App):
         asyncio.create_task(self._verify_and_connect(p))
 
     async def _verify_and_connect(self, p, attempts_left: int = 3) -> None:
-        """Backup -> connect -> verify HTTPS through proxy (3s) -> rollback+next if dead."""
+        """Backup -> connect -> verify HTTPS through proxy (3s) -> rollback+next if dead.
+        Backup is taken ONCE (first connect) and reused on failover rotation —
+        the original pre-connect settings must survive rotation, never be
+        overwritten by the proxy's own state."""
         import aiohttp
         from validator import verify_https
         try:
-            saved = self.proxyctl.backup()
+            saved = self.connected_saved if self.connected_saved is not None \
+                else self.proxyctl.backup()
             self.proxyctl.connect(p, saved)
             self.connected = p
             self.connected_saved = saved
@@ -470,9 +491,11 @@ class ProxyApp(App):
                 self.notify(f"Connected: {p.addr()} ({p.country or '?'})")
                 self._sync_tray()
                 return
-            # verify failed -> rollback, try next fastest
+            # verify failed -> rollback original, try next fastest
             self.proxyctl.restore(saved)
             self.connected = None
+            self.connected_saved = None
+            self.proxyctl.clear_backup()
             self.notify(f"{p.addr()} failed HTTPS check — rolling back", severity="error")
             self._sync_tray()
         except Exception as e:
@@ -577,8 +600,11 @@ class ProxyApp(App):
 
     async def _do_disconnect_quiet(self) -> None:
         try:
-            self.proxyctl.restore(self.connected_saved)
+            if self.connected_saved:
+                self.proxyctl.restore(self.connected_saved)
+                self.proxyctl.clear_backup()
             self.connected = None
+            self.connected_saved = None
             self.refresh_status()
             self._sync_tray()
         except Exception as e:
@@ -618,6 +644,7 @@ class ProxyApp(App):
         if self.connected and self.proxyctl and self.connected_saved:
             try:
                 self.proxyctl.restore(self.connected_saved)
+                self.proxyctl.clear_backup()
                 print(f"[proxyctl] restored on exit: mode -> "
                       f"{self.connected_saved.get(('', 'mode'), '?')}")
             except Exception as e:

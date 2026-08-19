@@ -114,6 +114,11 @@ values). SOCKS proxies don't work system-wide — they stay in export/project mo
   echo; on failure it auto-rotates to the next fastest (max 3 failovers).
 - `X`: restores backed-up values (`mode` returns to previous).
 - **On exit (esc/ctrl+c/crash) settings are auto-restored** (`finally`-guaranteed).
+- **Restore works at every means**: the pre-connect settings are persisted to
+  `~/.cache/proxyveil/backup.json` at connect time and reused through all
+  rotations (failover never overwrites the original). Q/esc/ctrl+c, `X`, the
+  3-failover stop, and even a hard kill/crash all restore the original
+  settings — a crashed session's stale backup is restored on next startup.
 - No `gsettings` / non-GNOME: header shows "CONNECT DISABLED", `C/N/X` warn —
   the tool falls back to export/project mode.
 
@@ -164,6 +169,7 @@ else through the proxy.
 source .venv/bin/activate
 python test_validator.py     # anonymity classification + https normalize + collector (assert-based)
 python test_proxyctl.py      # backup/restore logic (gsettings mocked, never touches real settings)
+python test_ui_failover.py   # rotation keeps original backup; crash recovery (headless, offline)
 python test_tray.py          # TrayManager: import-resistance, callbacks, icon drawing
 python smoke_test.py         # headless: 300 proxies, 20+ alive, FakeCtl connect simulation, export, SVG
 ```

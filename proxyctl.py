@@ -12,9 +12,16 @@ Flow:
 Note: SOCKS proxies don't fully work with gsettings system proxy —
 only HTTP/HTTPS can connect system-wide. Others stay in "project/export" mode.
 """
-import asyncio, socket, subprocess
+import asyncio, json, os, socket, subprocess
 
 SCHEMA = "org.gnome.system.proxy"
+
+def _cache_dir():
+    base = os.environ.get("XDG_CACHE_HOME") or os.path.join(os.path.expanduser("~"), ".cache")
+    return os.path.join(base, "proxyveil")
+
+# Persisted pre-connect backup — survives crash/kill so restore works "at every means".
+BACKUP_FILE = os.path.join(_cache_dir(), "backup.json")
 # (schema-path or schema, key) pairs — backup/restore order
 KEYS = [
     ("", "mode"),
@@ -46,12 +53,42 @@ def available() -> bool:
 
 
 def backup() -> dict:
-    """Read all current values (as strings), return {key: value}."""
+    """Read all current values (as strings), return {key: value}.
+    Persisted to disk — a crash/kill mid-connect is recoverable next start."""
     out = {}
     for path, key in KEYS:
         full = f"{SCHEMA}.{path}" if path else SCHEMA
         out[(path, key)] = _run_gsettings("get", full, key)
+    save_backup(out)
     return out
+
+def save_backup(saved: dict) -> None:
+    """Write backup to disk (atomic). Best-effort: never breaks connect."""
+    try:
+        os.makedirs(os.path.dirname(BACKUP_FILE), exist_ok=True)
+        data = [{"path": p, "key": k, "value": v} for (p, k), v in saved.items()]
+        tmp = BACKUP_FILE + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(data, f)
+        os.replace(tmp, BACKUP_FILE)
+    except OSError:
+        pass
+
+def load_backup():
+    """Read persisted backup; None if absent/corrupt."""
+    try:
+        with open(BACKUP_FILE) as f:
+            data = json.load(f)
+        return {(d["path"], d["key"]): d["value"] for d in data}
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+def clear_backup() -> None:
+    """Remove persisted backup (after a successful restore)."""
+    try:
+        os.remove(BACKUP_FILE)
+    except OSError:
+        pass
 
 
 def restore(saved: dict):

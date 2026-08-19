@@ -50,6 +50,14 @@ class FakeCtl:
         cls.saved = dict(saved)
 
     @classmethod
+    def load_backup(cls):
+        return None
+
+    @classmethod
+    def clear_backup(cls):
+        pass
+
+    @classmethod
     def check_alive(cls, p, timeout=2.0):
         return True  # testte her canlıya izin ver
 
