@@ -17,27 +17,19 @@ def check(name, cond):
     print(f"  ok: {name}")
 
 
-# ---------- fake winreg ----------
+# ---------- fake winreg (gerçek winreg modül yüzeyini aynalar) ----------
 class FakeKey:
+    """PyHKEY karşılığı: sadece context manager (with)."""
     def __init__(self, store):
         self.store = store
     def __enter__(self):
         return self
     def __exit__(self, *a):
         return False
-    def QueryValueEx(self, name):
-        if name not in self.store:
-            raise FileNotFoundError(name)
-        return self.store[name]
-    def SetValueEx(self, name, res, typ, val):
-        self.store[name] = (val, typ)
-    def DeleteValue(self, name):
-        if name not in self.store:
-            raise FileNotFoundError(name)
-        del self.store[name]
 
 class FakeWinreg:
-    """Dict-backed winreg substitute: vals = {name: (value, type)}."""
+    """Dict-backed winreg substitute: vals = {name: (value, type)}.
+    Fonksiyonlar modül seviyesinde — gerçek winreg gibi (PyHKEY'de method yok)."""
     def __init__(self, vals, fail_open=False):
         self.vals = vals
         self.fail_open = fail_open
@@ -50,6 +42,16 @@ class FakeWinreg:
         if self.fail_open:
             raise OSError("key unreachable")
         return FakeKey(self.vals)
+    def QueryValueEx(self, key, name):
+        if name not in key.store:
+            raise FileNotFoundError(name)
+        return key.store[name]
+    def SetValueEx(self, key, name, res, typ, val):
+        key.store[name] = (val, typ)
+    def DeleteValue(self, key, name):
+        if name not in key.store:
+            raise FileNotFoundError(name)
+        del key.store[name]
 
 WINREG_MODULES = {}  # name -> module replacements
 

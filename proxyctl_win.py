@@ -48,7 +48,7 @@ def _read(name):
     wr = _winreg()
     try:
         with _open(wr.KEY_READ) as k:
-            val, _ = k.QueryValueEx(name)
+            val, _ = wr.QueryValueEx(k, name)
         return str(val)
     except FileNotFoundError:
         return None
@@ -59,14 +59,14 @@ def _write(name, value) -> None:
     typ = wr.REG_DWORD if REG_TYPES.get(name) == "dword" else wr.REG_SZ
     val = int(value) if typ == wr.REG_DWORD else value
     with _open(wr.KEY_SET_VALUE) as k:
-        k.SetValueEx(name, 0, typ, val)
+        wr.SetValueEx(k, name, 0, typ, val)
 
 
 def _delete(name) -> None:
     wr = _winreg()
     try:
         with _open(wr.KEY_SET_VALUE) as k:
-            k.DeleteValue(name)
+            wr.DeleteValue(k, name)
     except FileNotFoundError:
         pass
 
